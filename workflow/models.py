@@ -12,6 +12,13 @@ class StateManager(models.Manager):
 		obj.save()
 		return obj
 
+	def get_state(self, name):
+		try:
+			state = self.get(name=name)
+		except State.DoesNotExist, e:
+			state = None
+		return state
+
 
 class State(models.Model):
 	ACTIVE = 1
@@ -80,7 +87,7 @@ class WorkflowInfo(models.Model):
 		return str(self.name) + ' ' + str(self.description)
 
 	def initiate_workflow(self, acting_obj):
-		states = self.states.values_list('name', flat=True)
+		states = list(self.states.values_list('name', flat=True))
 		state_conditions = self.state_conditions.all()
 		transitions = StateCondition.objects.prepare_state_condition_transitions(state_conditions)
 		machine = Machine(acting_obj, states=states, transitions=transitions, initial=self.initial_state.name)

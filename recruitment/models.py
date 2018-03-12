@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 from django.db import models
 from StateMachine.utils import generate_unique_id
 import dill as pickle
-from workflow.models import WorkflowInfo
+from workflow.models import WorkflowInfo, State
 # Create your models here.
 
 
@@ -44,7 +44,6 @@ class Company(BaseModel):
 		return data
 
 
-
 class JobManager(models.Manager):
 
 	def create_job(self, job_role, company_id,  description, experience_req, salary):
@@ -60,7 +59,7 @@ class Job(BaseModel):
 	job_role = models.CharField(max_length=255)  # Role of job like SDE, SDE2
 	description = models.TextField(null=True, blank=True)  # Job description
 	experience_req = models.IntegerField(default=0)  # In years
-	salary = models.DecimalField(decimal_places=2, default=0.00)
+	salary = models.DecimalField(decimal_places=2, default=0.00, max_digits=20)
 	company = models.ForeignKey(Company)
 
 	objects = JobManager()
@@ -117,24 +116,25 @@ class Candidate(BaseModel):
 		data['name'] = self.name
 		data['mobile_number'] = self.mobile_number
 		data['email_id'] = self.email_id
-		data['gender'] = self.gender
 		data['qualification'] = self.qualification
 		return data
 
+
 class HiringManager(models.Manager):
 
-	def add_hiring_entry(self, job, candidate, workflow, state_obj, machine_obj):
+	def add_hiring_entry(self, job, candidate, workflow, state_obj, machine_obj, current_state):
 		hiring_id = generate_unique_id('HIR')
 		state_obj_dump = pickle.dumps(state_obj).encode("base64").strip()
 		machine_obj_dump = pickle.dumps(machine_obj).encode("base64").strip()
 		obj = self.model(hiring_id=hiring_id, candidate=candidate, job=job, workflow=workflow,
-						 state_obj_dump=state_obj_dump, machine_obj_dump=machine_obj_dump)
+						 state_obj_dump=state_obj_dump, machine_obj_dump=machine_obj_dump,
+						 current_state=current_state)
 		obj.save()
 		return obj
 
 	def initiate_hiring(self, job, candidate, workflow):
 		machine, acting_obj = workflow.initiate_workflow(candidate)
-		hiring_obj = self.add_hiring_entry(job, candidate, workflow, acting_obj, machine)
+		hiring_obj = self.add_hiring_entry(job, candidate, workflow, acting_obj, machine, workflow.initial_state)
 		return hiring_obj, acting_obj.state
 
 
@@ -145,6 +145,7 @@ class Hiring(BaseModel):
 	state_obj_dump = models.TextField(null=True, blank=True)
 	machine_obj_dump = models.TextField(null=True, blank=True)
 	workflow = models.ForeignKey(WorkflowInfo)  # Specifies the workflow that is followed
+	current_state = models.ForeignKey(State)  # Specifies the current state of hiring candidate
 
 	objects = HiringManager()
 
@@ -157,11 +158,13 @@ class Hiring(BaseModel):
 		data['candidate'] = self.candidate.serializer()
 		data['job'] = self.job.serializer()
 		data['workflow'] = self.workflow.name
+		data['current_state'] = self.current_state.name
 		return data
 
 	def dump_state_machine_obj(self, machine_obj, state_obj):
 		self.state_obj_dump = pickle.dumps(state_obj).encode("base64").strip()
 		self.machine_obj_dump = pickle.dumps(machine_obj).encode("base64").strip()
+		self.current_state = State.objects.get_state(state_obj.state)
 		self.save()
 
 	def get_state_machine_obj(self):
