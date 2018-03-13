@@ -1,16 +1,21 @@
 Pre-requisites:
+
     Install the pre-requisites by following command:
         pip install -r requirements.txt
 
 
 Running the setup:
+
     Run the following command to run the server:
         ./manage.py runserver 0.0.0.0:8000
 
         where last argument specify the Ip and port on which we want to run
 
 
-Workflow
+Workflow:
+
+    As of now we will be confuguing the workflow models via django admin.We can add apis for configuration in future
+
     State
         - Stores the states of workflow
 
